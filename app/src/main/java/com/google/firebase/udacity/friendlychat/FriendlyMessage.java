@@ -22,6 +22,9 @@ public class FriendlyMessage {
     private String photoUrl;
 
     public FriendlyMessage() {
+        text = "woop woop woop woop woop woop";
+        name = "ANONYMOUS";
+        photoUrl = null;
     }
 
     public FriendlyMessage(String text, String name, String photoUrl) {
