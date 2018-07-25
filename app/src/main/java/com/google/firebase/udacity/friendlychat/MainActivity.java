@@ -172,6 +172,7 @@ public class MainActivity extends AppCompatActivity {
                 // Code here runs when a new message is added
                 FriendlyMessage friendlyMessage = dataSnapshot.getValue(FriendlyMessage.class);
                 mMessageAdapter.add(friendlyMessage);
+                // OkaToast.makeText(MainActivity.this,"new message detected :D",Toast.LENGTH_SHORT).show();
             }
 
             @Override
@@ -207,7 +208,12 @@ public class MainActivity extends AppCompatActivity {
 
     @Override
     public boolean onOptionsItemSelected(MenuItem item) {
-        return super.onOptionsItemSelected(item);
+        if (item.getItemId() == R.id.sign_out_menu) {
+            mFirebaseAuth.signOut();
+            return true;
+        } else {
+            return super.onOptionsItemSelected(item);
+        }
     }
 
     @Override
