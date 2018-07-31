@@ -38,6 +38,7 @@ import android.widget.Toast;
 import com.firebase.ui.auth.AuthUI;
 import com.google.android.gms.tasks.OnFailureListener;
 import com.google.android.gms.tasks.OnSuccessListener;
+import com.google.firebase.analytics.FirebaseAnalytics;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseUser;
 import com.google.firebase.database.ChildEventListener;
@@ -51,11 +52,14 @@ import com.google.firebase.storage.FirebaseStorage;
 import com.google.firebase.storage.StorageReference;
 import com.google.firebase.storage.UploadTask;
 
+import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Date;
 
 public class MainActivity extends AppCompatActivity {
 
@@ -77,6 +81,9 @@ public class MainActivity extends AppCompatActivity {
 
     private String mUsername;
 
+    private LocalDateTime timePoint;
+    private Map<String,Integer> time;
+
     // Firebase instance variables
     private FirebaseDatabase mFirebaseDatabase;
     private DatabaseReference mMessagesDatabaseReference;
@@ -86,6 +93,7 @@ public class MainActivity extends AppCompatActivity {
     private FirebaseStorage mFirebaseStorage;
     private StorageReference mChatPhotosStorageReference;
     private FirebaseRemoteConfig mFirebaseRemoteConfig;
+    private FirebaseAnalytics mFirebaseAnalytics;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -93,6 +101,8 @@ public class MainActivity extends AppCompatActivity {
         setContentView(R.layout.activity_main);
 
         mUsername = ANONYMOUS;
+
+
 
         // Initialize Firebase components
         mFirebaseDatabase = FirebaseDatabase.getInstance();
@@ -103,12 +113,21 @@ public class MainActivity extends AppCompatActivity {
         mMessagesDatabaseReference = mFirebaseDatabase.getReference().child("messages");
         mChatPhotosStorageReference = mFirebaseStorage.getReference().child("chat_photos");
 
+        mFirebaseAnalytics = FirebaseAnalytics.getInstance(this);
+
         // Initialize references to views
         mProgressBar = (ProgressBar) findViewById(R.id.progressBar);
         mMessageListView = (ListView) findViewById(R.id.messageListView);
         mPhotoPickerButton = (ImageButton) findViewById(R.id.photoPickerButton);
         mMessageEditText = (EditText) findViewById(R.id.messageEditText);
         mSendButton = (Button) findViewById(R.id.sendButton);
+
+        timePoint = LocalDateTime.now();
+        time = new HashMap<>();
+        time.put("initMin",timePoint.getMinute());
+        time.put("initHour",timePoint.getHour());
+        time.put("initSec",timePoint.getSecond());
+        Toast.makeText(MainActivity.this, "time initiated",Toast.LENGTH_SHORT).show();
 
         // Initialize message ListView and its adapter
         List<FriendlyMessage> friendlyMessages = new ArrayList<>();
@@ -159,6 +178,14 @@ public class MainActivity extends AppCompatActivity {
 
                 // Clear input box
                 mMessageEditText.setText("");
+
+                // Add Event to track sends:
+                //TODO: IMPLEMENT THIS FEATURE CORRECTLY
+                Bundle bundle = new Bundle();
+                bundle.putString("Button_Name","Send");
+                bundle.putString("Text",mMessageEditText.getText().toString());
+                mFirebaseAnalytics.logEvent(FirebaseAnalytics.Event.SELECT_CONTENT,bundle);
+                Toast.makeText(MainActivity.this,"Tracked send button",Toast.LENGTH_SHORT).show();
             }
         });
 
@@ -238,17 +265,18 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onResume() {
         super.onResume();
+
         mFirebaseAuth.addAuthStateListener(mAuthStateListener);
     }
 
     @Override
     protected void onPause() {
-        super.onPause();
         if (mAuthStateListener != null) {
             mFirebaseAuth.removeAuthStateListener(mAuthStateListener);
         }
         mMessageAdapter.clear();
         detachDatabaseReadListener();
+        super.onPause();
     }
 
     @Override
@@ -347,5 +375,41 @@ public class MainActivity extends AppCompatActivity {
         Long friendly_msg_length = mFirebaseRemoteConfig.getLong(FRIENDLY_MSG_LENGTH_KEY);
         mMessageEditText.setFilters(new InputFilter[]{new InputFilter.LengthFilter(friendly_msg_length.intValue())});
         Log.d(TAG, FRIENDLY_MSG_LENGTH_KEY + " = " + friendly_msg_length);
+    }
+
+    @Override
+    protected void onStop() {
+        timePoint = LocalDateTime.now();
+        int hr = timePoint.getHour(); int mn = timePoint.getMinute(); int sc = timePoint.getSecond();
+        String timepassed = timePassed(time.get("initHour"),time.get("initMin"),time.get("initSec"),hr,mn,sc);
+        Bundle params = new Bundle();
+        params.putString("app_time",timepassed);
+        mFirebaseAnalytics.logEvent("time_spent",params);
+        Toast.makeText(MainActivity.this,"sent event",Toast.LENGTH_SHORT).show();
+        super.onStop();
+    }
+
+    private String timePassed(int initHour,int initMin,int initSec,int currentHour, int currentMin,int currentSec) {
+        int hourDif = currentHour - initHour;
+        if (hourDif < 0) {
+            hourDif = currentHour + 24 - initHour;
+        }
+        int minDif =  hourDif * 60 + currentMin - initMin;
+        int secDif = currentSec - initSec;
+        if (secDif < 0) {
+            secDif = currentSec + 60 - initSec;
+        }
+        String secDec = Integer.toString(secDif * 10 / 6);
+        if (secDec.length() == 1) {
+            secDec = "0" + secDec;
+        }
+        return Integer.toString(minDif) + "." + secDec;
+    }
+
+    private void logEvent() {
+        Bundle params = new Bundle();
+        bundle.putString("Button_Name","Send");
+        bundle.putString("Text",mMessageEditText.getText().toString());
+        mFirebaseAnalytics.logEvent(FirebaseAnalytics.Event.SELECT_CONTENT,bundle);
     }
 }
